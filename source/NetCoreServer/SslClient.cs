@@ -23,12 +23,24 @@ namespace NetCoreServer
         /// <param name="port">Port number</param>
         public SslClient(SslContext context, IPAddress address, int port) : this(context, new IPEndPoint(address, port)) {}
         /// <summary>
-        /// Initialize SSL client with a given server IP address and port number
+        /// Initialize SSL client with a given server hostname and port number
         /// </summary>
         /// <param name="context">SSL context</param>
-        /// <param name="address">IP address</param>
+        /// <param name="hostname">Server's hostname</param>
         /// <param name="port">Port number</param>
-        public SslClient(SslContext context, string address, int port) : this(context, new IPEndPoint(IPAddress.Parse(address), port)) { Address = address; }
+        public SslClient(SslContext context, string hostname, int port)
+        {
+            Id = Guid.NewGuid();
+            Address = hostname;
+            Context = context;
+
+            var hostEntry = Dns.GetHostEntry(hostname);
+            if (hostEntry.AddressList.Length > 0)
+            {
+                Endpoint = new IPEndPoint(hostEntry.AddressList[0], port);
+            }
+            else throw new ArgumentException("No IP addresses found for given hostname.");
+        }
         /// <summary>
         /// Initialize SSL client with a given IP endpoint
         /// </summary>
@@ -688,7 +700,14 @@ namespace NetCoreServer
 
                     // Begin the SSL handshake
                     _handshaking = true;
-                    _sslStream.BeginAuthenticateAsClient(Address, Context.Certificates ?? new X509CertificateCollection(new[] { Context.Certificate }), Context.Protocols, true, ProcessHandshake, _sslStreamId);
+                    if ((Context.Certificates == null || Context.Certificates.Count == 0) && Context.Certificate == null)
+                    {
+                        _sslStream.BeginAuthenticateAsClient(Address, ProcessHandshake, _sslStreamId);
+                    }
+                    else
+                    {
+                        _sslStream.BeginAuthenticateAsClient(Address, Context.Certificates ?? new X509CertificateCollection(new[] { Context.Certificate }), Context.Protocols, true, ProcessHandshake, _sslStreamId);
+                    }
                 }
                 catch (Exception)
                 {

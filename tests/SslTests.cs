@@ -24,6 +24,11 @@ namespace tests
             return new SslContext(SslProtocols.Tls12, new X509Certificate2("client.pfx", "qwerty"), (sender, certificate, chain, sslPolicyErrors) => true);
         }
 
+        public static SslContext CreateContextWithoutCert()
+        {
+            return new SslContext(SslProtocols.Tls12, certificate: null, (sender, certificate, chain, sslPolicyErrors) => true);
+        }
+
         protected override void OnConnected() { Connected = true; }
         protected override void OnHandshaked() { Handshaked = true; }
         protected override void OnDisconnected() { Disconnected = true; }
@@ -92,6 +97,67 @@ namespace tests
 
             // Create and prepare a new SSL client context
             var clientContext = EchoSslClient.CreateContext();
+
+            // Create and connect Echo client
+            var client = new EchoSslClient(clientContext, address, port);
+            Assert.True(client.ConnectAsync());
+            while (!client.IsConnected || !client.IsHandshaked || (server.Clients != 1))
+                Thread.Yield();
+
+            // Send a message to the Echo server
+            client.SendAsync("test");
+
+            // Wait for all data processed...
+            while (client.BytesReceived != 4)
+                Thread.Yield();
+
+            // Disconnect the Echo client
+            Assert.True(client.DisconnectAsync());
+            while (client.IsConnected || client.IsHandshaked || (server.Clients != 0))
+                Thread.Yield();
+
+            // Stop the Echo server
+            Assert.True(server.Stop());
+            while (server.IsStarted)
+                Thread.Yield();
+
+            // Check the Echo server state
+            Assert.True(server.Started);
+            Assert.True(server.Stopped);
+            Assert.True(server.Connected);
+            Assert.True(server.Handshaked);
+            Assert.True(server.Disconnected);
+            Assert.True(server.BytesSent == 4);
+            Assert.True(server.BytesReceived == 4);
+            Assert.True(!server.Errors);
+
+            // Check the Echo client state
+            Assert.True(client.Connected);
+            Assert.True(client.Handshaked);
+            Assert.True(client.Disconnected);
+            Assert.True(client.BytesSent == 4);
+            Assert.True(client.BytesReceived == 4);
+            Assert.True(!client.Errors);
+        }
+
+        [Fact(DisplayName = "SSL server test, no client certificate")]
+        public void TcpServerNoClientCertTest()
+        {
+            string address = "127.0.0.1";
+            int port = 2222;
+
+            // Create and prepare a new SSL server context
+            var serverContext = EchoSslServer.CreateContext();
+            serverContext.ClientCertificateRequired = false;
+
+            // Create and start Echo server
+            var server = new EchoSslServer(serverContext, IPAddress.Any, port);
+            Assert.True(server.Start());
+            while (!server.IsStarted)
+                Thread.Yield();
+
+            // Create and prepare a new SSL client context
+            var clientContext = EchoSslClient.CreateContextWithoutCert();
 
             // Create and connect Echo client
             var client = new EchoSslClient(clientContext, address, port);
