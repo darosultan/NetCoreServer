@@ -258,13 +258,13 @@ namespace NetCoreServer
 
             try
             {
-                try
-                {
-                    // Shutdown the SSL stream
-                    _sslStream.ShutdownAsync().Wait();
-                }
-                catch (AggregateException) {}
-                catch (IOException) {}
+                //try
+                //{
+                //    // Shutdown the SSL stream
+                //    _sslStream.ShutdownAsync().Wait();
+                //}
+                //catch (AggregateException) {}
+                //catch (IOException) {}
 
                 // Dispose the SSL stream & buffer
                 _sslStream.Dispose();
